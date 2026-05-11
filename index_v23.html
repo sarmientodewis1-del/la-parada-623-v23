@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>La Parada | Menú Pro v23</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = { darkMode: 'class' }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap');
+        body { font-family: 'Outfit', sans-serif; }
+        .seccion-contenido { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+        .seccion-abierta .seccion-contenido { max-height: 2000px; transition: max-height 0.5s ease-in; }
+        .rotate-icon { transition: transform 0.3s; }
+        .seccion-abierta .rotate-icon { transform: rotate(180deg); }
+        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 pb-44">
+
+    <header class="p-4 bg-white/80 dark:bg-slate-800/80 sticky top-0 z-50 shadow-sm border-b border-slate-100 dark:border-slate-700 backdrop-blur-md">
+        <div class="max-w-md mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-black text-red-600 dark:text-red-500 tracking-tighter">🍔 LA PARADA 623</h1>
+            <button onclick="toggleDarkMode()" class="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                <i class="fas fa-moon" id="theme-icon"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-md mx-auto p-4 space-y-6">
+        <section class="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-xl border border-slate-100 dark:border-slate-700">
+            <div class="space-y-3">
+                <input type="text" id="cliente-nombre" placeholder="Tu nombre" class="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-600 bg-transparent outline-none focus:ring-2 focus:ring-red-500">
+                <input list="barrios-list" id="cliente-barrio" onchange="actualizarTotal()" placeholder="Selecciona tu Barrio" class="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-600 bg-transparent outline-none focus:ring-2 focus:ring-red-500">
+                <datalist id="barrios-list"></datalist>
+                <input type="text" id="cliente-direccion" placeholder="Dirección exacta" class="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-600 bg-transparent outline-none focus:ring-2 focus:ring-red-500">
+            </div>
+        </section>
+
+        <div id="menu-container" class="space-y-4"></div>
+
+        <section class="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700">
+            <textarea id="pedido-nota" placeholder="¿Alguna instrucción especial?" class="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-600 bg-transparent h-24 outline-none focus:ring-2 focus:ring-red-500"></textarea>
+        </section>
+    </main>
+
+    <div id="modal-extras" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden items-end justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-[2.5rem] p-6 shadow-2xl animate-fade-in">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-black px-2 py-1 rounded-lg tracking-widest uppercase">Paso 2</span>
+                <h3 class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Adicionales</h3>
+            </div>
+            <p id="modal-titulo" class="text-sm text-slate-500 mb-6 font-medium italic border-b border-slate-100 dark:border-slate-700 pb-2"></p>
+            
+            <div id="modal-opciones" class="space-y-3 max-h-60 overflow-y-auto mb-6 pr-2"></div>
+            
+            <button onclick="cerrarModal()" class="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-red-500/20 active:scale-95 transition-all">
+                CONFIRMAR Y CONTINUAR
+            </button>
+        </div>
+    </div>
+
+    <div class="fixed bottom-0 left-0 right-0 p-5 bg-white/95 dark:bg-slate-800/95 border-t border-slate-100 dark:border-slate-700 z-[100] backdrop-blur-xl">
+        <div class="max-w-md mx-auto flex items-center justify-between">
+            <div>
+                <p id="total-display" class="text-3xl font-black text-slate-900 dark:text-white">$0</p>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ENVÍO: <span id="domi-val">$0</span></span>
+            </div>
+            <button onclick="enviarPedido()" class="bg-green-500 hover:bg-green-600 text-white px-8 py-4 rounded-3xl font-bold shadow-lg flex items-center gap-2 active:scale-95 transition-all">
+                <i class="fab fa-whatsapp text-2xl"></i> PEDIR
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSEC3WgPuEHGldREns1GXnImu8N13vcvIhQOX4Htx2270mZtxQgRQXh9yc85tW7mZ33b3mEnBgJ9jTJ/pub?output=csv';
+        const DOMICILIOS_URL = BASE_URL + '&gid=53487967'; 
+
+        let carrito = {};
+        let listaBarriosPrecios = {};
+        let productoActual = null;
+
+        function cargarDatos() {
+            Papa.parse(BASE_URL, { download: true, header: true, complete: (res) => renderMenu(res.data) });
+            Papa.parse(DOMICILIOS_URL, { 
+                download: true, header: true, 
+                complete: (res) => {
+                    res.data.forEach(fila => {
+                        const b = fila['Barrio'] || fila['barrio'];
+                        const p = fila['Precio'] || fila['precio'];
+                        if(b && p) listaBarriosPrecios[b.trim()] = parseInt(p.toString().replace(/[^0-9]/g, ''));
+                    });
+                    actualizarDatalist();
+                }
+            });
+        }
+
+        function actualizarDatalist() {
+            const list = document.getElementById('barrios-list');
+            list.innerHTML = '';
+            Object.keys(listaBarriosPrecios).sort().forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b;
+                list.appendChild(opt);
+            });
+        }
+
+        function toggleSeccion(id) {
+            const el = document.getElementById(id);
+            el.classList.toggle('seccion-abierta');
+        }
+
+        function renderMenu(platos) {
+            const container = document.getElementById('menu-container');
+            container.innerHTML = '';
+            const secciones = {};
+
+            platos.forEach(p => {
+                const sec = p['Seccion'] || p['seccion'];
+                if (!sec) return;
+                if (!secciones[sec]) secciones[sec] = [];
+                secciones[sec].push(p);
+            });
+
+            Object.keys(secciones).forEach((nombreSeccion, sIdx) => {
+                const idSeccion = `sec-${sIdx}`;
+                let htmlSeccion = `
+                    <div id="${idSeccion}" class="border-b border-slate-200 dark:border-slate-700">
+                        <button onclick="toggleSeccion('${idSeccion}')" class="w-full flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm mb-1 active:bg-slate-50">
+                            <span class="text-lg font-black text-red-600 dark:text-red-500 uppercase tracking-tight">${nombreSeccion}</span>
+                            <i class="fas fa-chevron-down rotate-icon text-slate-400"></i>
+                        </button>
+                        <div class="seccion-contenido px-1">`;
+
+                secciones[nombreSeccion].forEach((p, idx) => {
+                    const nombre = p['Plato Fuerte'] || p['Nombre'] || "Producto";
+                    const desc = p['Descripcion'] || p['Bebida'] || "Delicioso...";
+                    const precio = parseInt(p['Precio'] || 0);
+                    const extras = p['Adicionales'] || "";
+                    const idHTML = `cant-${sIdx}-${idx}`;
+                    
+                    htmlSeccion += `
+                        <div class="bg-white dark:bg-slate-800 p-4 rounded-[2rem] flex flex-col gap-3 border border-slate-100 dark:border-slate-700 shadow-sm my-3 animate-fade-in">
+                            <div class="flex gap-4">
+                                <img src="${p['Imagen'] || ''}" class="w-20 h-20 rounded-2xl object-cover bg-slate-100" onerror="this.src='https://via.placeholder.com/150?text=Parada'">
+                                <div class="flex-1">
+                                    <h3 class="text-md font-black uppercase leading-tight">${nombre}</h3>
+                                    <p class="text-[11px] text-slate-500 mt-1 italic">${desc}</p>
+                                    <p class="text-red-600 font-black text-md mt-1">$${precio.toLocaleString()}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-end">
+                                <div class="flex items-center gap-6 bg-slate-100 dark:bg-slate-900 px-4 py-2 rounded-2xl">
+                                    <button onclick="cambiarCant('${nombre.replace(/'/g, "\\'")}', ${precio}, -1, '${idHTML}', '${nombreSeccion}')" class="font-bold text-slate-400 w-6 h-6 flex items-center justify-center">-</button>
+                                    <span id="${idHTML}" class="font-black text-lg min-w-[20px] text-center">0</span>
+                                    <button onclick="cambiarCant('${nombre.replace(/'/g, "\\'")}', ${precio}, 1, '${idHTML}', '${nombreSeccion}', '${extras}')" class="font-bold text-red-500 text-lg w-6 h-6 flex items-center justify-center">+</button>
+                                </div>
+                            </div>
+                        </div>`;
+                });
+
+                htmlSeccion += `</div></div>`;
+                container.innerHTML += htmlSeccion;
+            });
+        }
+
+        function cambiarCant(nombre, precio, delta, idHTML, seccion, extrasStr = "") {
+            if (!carrito[nombre]) carrito[nombre] = { cant: 0, precio: precio, seccion: seccion, extras: {} };
+            carrito[nombre].cant += delta;
+            if (carrito[nombre].cant < 0) carrito[nombre].cant = 0;
+            document.getElementById(idHTML).innerText = carrito[nombre].cant;
+            if (delta > 0 && extrasStr.trim() !== "") abrirModal(nombre, extrasStr);
+            actualizarTotal();
+        }
+
+        function abrirModal(nombre, extrasStr) {
+            productoActual = nombre;
+            const modal = document.getElementById('modal-extras');
+            const opciones = document.getElementById('modal-opciones');
+            document.getElementById('modal-titulo').innerText = `¿Qué deseas añadirle a tu ${nombre}?`;
+            opciones.innerHTML = '';
+
+            extrasStr.split(',').forEach(extra => {
+                const parts = extra.split('+');
+                const nExtra = parts[0].trim();
+                const pExtra = parseInt(parts[1] || 0);
+                const cantExtra = (carrito[nombre].extras[nExtra] ? carrito[nombre].extras[nExtra].cant : 0);
+
+                opciones.innerHTML += `
+                    <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-700/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-600">
+                        <div>
+                            <p class="font-bold text-sm uppercase text-slate-700 dark:text-slate-200">${nExtra}</p>
+                            <p class="text-xs text-red-500 font-bold">+$${pExtra.toLocaleString()}</p>
+                        </div>
+                        <div class="flex items-center gap-4 bg-white dark:bg-slate-800 p-1 px-3 rounded-xl shadow-sm">
+                            <button onclick="modificarExtra('${nExtra}', ${pExtra}, -1)" class="w-8 h-8 font-bold text-slate-400">-</button>
+                            <span id="extra-${nExtra}" class="font-black text-slate-700 dark:text-white">${cantExtra}</span>
+                            <button onclick="modificarExtra('${nExtra}', ${pExtra}, 1)" class="w-8 h-8 font-bold text-red-500">+</button>
+                        </div>
+                    </div>`;
+            });
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function modificarExtra(nExtra, pExtra, delta) {
+            if (!carrito[productoActual].extras[nExtra]) {
+                carrito[productoActual].extras[nExtra] = { cant: 0, precio: pExtra };
+            }
+            carrito[productoActual].extras[nExtra].cant += delta;
+            if (carrito[productoActual].extras[nExtra].cant < 0) carrito[productoActual].extras[nExtra].cant = 0;
+            document.getElementById(`extra-${nExtra}`).innerText = carrito[productoActual].extras[nExtra].cant;
+            actualizarTotal();
+        }
+
+        function cerrarModal() {
+            document.getElementById('modal-extras').classList.add('hidden');
+            document.getElementById('modal-extras').classList.remove('flex');
+        }
+
+        function actualizarTotal() {
+            let totalPedido = 0;
+            Object.values(carrito).forEach(p => {
+                if (p.cant > 0) {
+                    // Sumar base del producto
+                    totalPedido += p.cant * p.precio;
+                    // Sumar sus extras
+                    Object.values(p.extras).forEach(ex => {
+                        totalPedido += ex.cant * ex.precio;
+                    });
+                }
+            });
+            const b = document.getElementById('cliente-barrio').value;
+            const env = listaBarriosPrecios[b] || 0;
+            document.getElementById('domi-val').innerText = `$${env.toLocaleString()}`;
+            document.getElementById('total-display').innerText = `$${(totalPedido + env).toLocaleString()}`;
+            return totalPedido; // Retornamos el subtotal para usar en enviarPedido
+        }
+
+        function enviarPedido() {
+            const nombre = document.getElementById('cliente-nombre').value;
+            const barrio = document.getElementById('cliente-barrio').value;
+            const dir = document.getElementById('cliente-direccion').value;
+            const nota = document.getElementById('pedido-nota').value;
+            
+            let itemsPorSeccion = {};
+            let subtotalGlobal = 0;
+
+            Object.entries(carrito).forEach(([nombreProd, data]) => {
+                if (data.cant > 0) {
+                    let precioBaseProducto = data.cant * data.precio;
+                    subtotalGlobal += precioBaseProducto;
+
+                    if (!itemsPorSeccion[data.seccion]) itemsPorSeccion[data.seccion] = "";
+                    
+                    // Incluimos el precio en la línea del producto
+                    let linea = `   • *x${data.cant}* ${nombreProd.toUpperCase()} (_$${data.precio.toLocaleString()}_)%0A`;
+                    
+                    Object.entries(data.extras).forEach(([extraNom, extraData]) => {
+                        if (extraData.cant > 0) {
+                            let costoExtra = extraData.cant * extraData.precio;
+                            subtotalGlobal += costoExtra;
+                            linea += `     └ _Extra: ${extraNom} (x${extraData.cant}) +$${costoExtra.toLocaleString()}_%0A`;
+                        }
+                    });
+                    itemsPorSeccion[data.seccion] += linea;
+                }
+            });
+
+            if (!nombre || !barrio || !dir) return alert("Por favor completa tus datos.");
+            if (subtotalGlobal === 0) return alert("Tu carrito está vacío.");
+
+            let detallePedido = "";
+            for (const sec in itemsPorSeccion) detallePedido += `📂 *${sec.toUpperCase()}*%0A${itemsPorSeccion[sec]}%0A`;
+
+            const env = listaBarriosPrecios[barrio] || 0;
+            const msg = `🛵 *NUEVO PEDIDO*%0A%0A👤 *CLIENTE:* ${nombre}%0A📍 *BARRIO:* ${barrio}%0A🏠 *DIRECCIÓN:* ${dir}%0A%0A📝 *DETALLE:*%0A${detallePedido}💬 *NOTAS:* ${nota || 'Ninguna'}%0A%0A💵 *SUBTOTAL:* $${subtotalGlobal.toLocaleString()}%0A🚚 *ENVÍO:* $${env.toLocaleString()}%0A💰 *TOTAL:* $${(subtotalGlobal + env).toLocaleString()}`;
+            
+            window.open(`https://wa.me/573001697267?text=${msg}`, '_blank');
+        }
+
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('dark-mode', document.documentElement.classList.contains('dark'));
+        }
+        if (localStorage.getItem('dark-mode') === 'true') document.documentElement.classList.add('dark');
+        
+        cargarDatos();
+    </script>
+</body>
+</html>
